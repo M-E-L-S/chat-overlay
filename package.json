@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test:security": "node --test tests/security.test.mjs",
     "test:desktop": "electron -r ./tests/desktop-smoke.cjs .",
+    "test:display": "electron tests/display-settings.cjs",
     "bridge:prepare": "node scripts/prepare-bridge.mjs",
     "typecheck": "tsc --noEmit"
   },

@@ -24,3 +24,9 @@
 锁文件可达 snapshot 从 630 减至 569，保留依赖的版本与清理前一致。
 类型检查、ESLint、安全测试和独立目录生产构建通过；未覆盖使用中的 out 和 runtime。
 桌面检查可在完成 package 后执行 `pnpm test:desktop`，会直接生成原项目预览数据，无需预先存在的缓存文件。
+
+## 显示开关修复
+
+原消息列表未读取 Show Interaction Events、Show Free Gifts 和 Show Entry Effects，设置保存后没有参与渲染过滤。现已将三个开关接入实际列表，切换后已有消息与新消息均立即遵循设置；过滤后没有可见消息时显示正常的等待提示。
+
+`pnpm test:display` 使用隔离 profile、模拟 WebSocket/fetch 和隐藏 Electron 窗口，通过真实设置面板验证普通进入/关注等互动、点赞、免费礼物和独立入场特效的开关，确保重新启用时恢复消息。测试不连接真实桥接器或直播网页。

@@ -46,10 +46,17 @@ app.whenReady().then(async () => {
     await once(producer, 'open')
     const { buildPreviewEvents } = await require('jiti').createJiti(__filename).import('../src/dev/preview-events.ts')
     const events = buildPreviewEvents()
+    const display = await page.executeJavaScript('JSON.parse(localStorage.getItem("overlay-settings")).state')
+    const expectedRows = events.filter(event => {
+      if (event.type === 'interaction' || event.type === 'like-click') return display.showInteractionEvents
+      if (event.type === 'entry-effect') return display.showEntryEffect
+      if (event.type === 'gift' && event.coinType === 'silver') return display.showGiftFree
+      return true
+    }).length
     for (const event of events) producer.send(JSON.stringify(event))
     await sleep(1500)
     const rows = await page.executeJavaScript('document.querySelectorAll("[data-slot=event]").length')
-    assert.equal(rows, events.length)
+    assert.equal(rows, expectedRows)
     assert.equal(await page.executeJavaScript('typeof window.require'), 'undefined')
     // An invalid IPC value must not affect the native window.
     stage = 'verify IPC and window controls'

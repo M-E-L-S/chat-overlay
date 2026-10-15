@@ -1,18 +1,27 @@
 import { ConnectionState } from '@laplace.live/event-bridge-sdk'
 import type { LaplaceEvent } from '@laplace.live/event-types'
 import { IconArrowDownDashed } from '@tabler/icons-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { nf } from '@/utils/number-format'
 
 import { cn } from '../lib/cn'
 import { useRuntimeStore } from '../store/useRuntimeStore'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { EventLite } from './event-lite'
 import { EventBoundary } from './event-boundary'
 import { Button } from './ui/button'
 
 export function ChatEvents() {
   const { connectionState, messages } = useRuntimeStore()
+  const { showInteractionEvents, showGiftFree, showEntryEffect } = useSettingsStore()
+  const visibleMessages = useMemo(() => messages.filter(event => {
+    if (['online-rank-update', 'online-update', 'watched-update', 'likes-update'].includes(event.type)) return false
+    if (event.type === 'interaction' || event.type === 'like-click') return showInteractionEvents
+    if (event.type === 'gift' && event.coinType === 'silver') return showGiftFree
+    if (event.type === 'entry-effect') return showEntryEffect
+    return true
+  }), [messages, showInteractionEvents, showGiftFree, showEntryEffect])
   const [isAutoScrollPaused, setIsAutoScrollPaused] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatEventsRef = useRef<HTMLDivElement>(null)
@@ -56,7 +65,7 @@ export function ChatEvents() {
     if (!isAutoScrollPaused) {
       scrollToBottom()
     }
-  }, [messages, isAutoScrollPaused])
+  }, [visibleMessages, isAutoScrollPaused])
 
   // Add scroll event listener
   useEffect(() => {
@@ -109,25 +118,15 @@ export function ChatEvents() {
         )}
       >
         <div id='chat-messages' className='p-2 pt-8 space-y-2 overflow-y-auto scroll-smooth' ref={chatEventsRef}>
-          {messages.length === 0 ? (
+          {visibleMessages.length === 0 ? (
             <div className='text-center py-4 text-white/50'>
               {connectionState === ConnectionState.CONNECTED
                 ? 'Waiting for messages…'
                 : 'Connecting to LAPLACE Event Bridge…'}
             </div>
           ) : (
-            messages.map(event => {
+            visibleMessages.map(event => {
               const value = eventValue(event)
-
-              // Extra layer to filter unwanted event types
-              if (
-                event.type === 'online-rank-update' ||
-                event.type === 'online-update' ||
-                event.type === 'watched-update' ||
-                event.type === 'likes-update'
-              ) {
-                return
-              }
 
               return (
                 <EventBoundary key={event.id}>
