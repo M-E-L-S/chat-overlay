@@ -44,7 +44,8 @@ app.whenReady().then(async () => {
     stage = 'send fixture events'
     producer = new WebSocket('ws://127.0.0.1:9696', ['laplace-event-bridge-role-server', bridge.token], { origin: 'https://chat.laplace.live' })
     await once(producer, 'open')
-    const events = JSON.parse(fs.readFileSync(path.join(work, 'events.json'), 'utf8'))
+    const { buildPreviewEvents } = await require('jiti').createJiti(__filename).import('../src/dev/preview-events.ts')
+    const events = buildPreviewEvents()
     for (const event of events) producer.send(JSON.stringify(event))
     await sleep(1500)
     const rows = await page.executeJavaScript('document.querySelectorAll("[data-slot=event]").length')

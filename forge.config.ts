@@ -1,21 +1,16 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { FuseV1Options, FuseVersion } from '@electron/fuses'
-import { MakerDeb, type MakerDebConfigOptions } from '@electron-forge/maker-deb'
-import { MakerRpm } from '@electron-forge/maker-rpm'
-import { MakerSquirrel } from '@electron-forge/maker-squirrel'
-import { MakerZIP } from '@electron-forge/maker-zip'
 import { FusesPlugin } from '@electron-forge/plugin-fuses'
 import { VitePlugin } from '@electron-forge/plugin-vite'
 import type { ForgeConfig } from '@electron-forge/shared-types'
-
-const LINUX_OZONE_PLATFORM_ARG = '--ozone-platform=x11'
 
 // Environment-specific app icon without extension: Packager picks the format per platform, and
 // the Windows installer reuses the .ico
 const APP_ICON = `src/assets/icons/${process.env.NODE_ENV === 'development' ? 'dev' : 'prod'}/icon`
 
 const config: ForgeConfig = {
+  outDir: process.env.CHAT_OVERLAY_BUILD_DIR,
   packagerConfig: {
     asar: true,
     extraResource: [path.resolve('resources/bridge')],
@@ -26,53 +21,9 @@ const config: ForgeConfig = {
     icon: APP_ICON,
     executableName: 'chat-overlay',
     appBundleId: 'live.laplace.chat-overlay',
-    osxSign: process.env.APPLE_IDENTITY
-      ? {
-          identity: process.env.APPLE_IDENTITY,
-        }
-      : undefined,
-    osxNotarize:
-      process.env.APPLE_API_KEY_ID && process.env.APPLE_API_ISSUER
-        ? {
-            appleApiKey: `~/private_keys/AuthKey_${process.env.APPLE_API_KEY_ID}.p8`,
-            appleApiKeyId: process.env.APPLE_API_KEY_ID,
-            appleApiIssuer: process.env.APPLE_API_ISSUER,
-          }
-        : undefined,
   },
   rebuildConfig: {},
-  makers: [
-    new MakerSquirrel({
-      // https://www.electronforge.io/config/makers/squirrel.windows?q=setAppUserModelId#spaces-in-the-app-name
-      name: 'LAPLACEChatOverlay',
-      authors: 'LAPLACE Live!',
-      description: 'A modern, transparent chat overlay application for Bilibili live streaming',
-      setupIcon: `${APP_ICON}.ico`,
-    }),
-    new MakerZIP(
-      {
-        macUpdateManifestBaseUrl: 'https://github.com/laplace-live/chat-overlay/releases/latest/download',
-      },
-      ['darwin']
-    ),
-    // Launch under XWayland rather than native Wayland, where always on top and
-    // click pass-through are both inert. src/main.ts relaunches itself with the
-    // same flag for launches that don't go through the desktop entry.
-    new MakerRpm({
-      options: {
-        execArguments: [LINUX_OZONE_PLATFORM_ARG],
-      },
-    }),
-    new MakerDeb({
-      // `execArguments` is untyped for Debian because upstream's desktop
-      // template ignores it, but the value still reaches the template context —
-      // and ours reads it, the same way electron-installer-redhat's does.
-      options: {
-        execArguments: [LINUX_OZONE_PLATFORM_ARG],
-        desktopTemplate: path.resolve('resources/desktop.ejs'),
-      } as MakerDebConfigOptions,
-    }),
-  ],
+  makers: [],
   plugins: [
     new VitePlugin({
       // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.

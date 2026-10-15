@@ -1,185 +1,51 @@
-# LAPLACE Chat Overlay
+# LAPLACE Chat Overlay · 本地加固版
 
-A modern, transparent chat overlay application for Bilibili live streaming built with Electron, React, and TypeScript. This overlay connects to the LAPLACE Event Bridge to display real-time chat messages, interactions, and viewer engagement metrics.
+基于 [laplace-live/chat-overlay](https://github.com/laplace-live/chat-overlay) 的 Windows x64 个人 fork，保留原有透明悬浮窗、置顶、鼠标穿透、弹幕与礼物样式。
 
-<p>
-  <img src="screenshots/hero.png" width="400" alt="LAPLACE Chat Overlay showing a live room's chat, with Super Chats and a gift">
-  <img src="screenshots/settings.png" width="400" alt="LAPLACE Chat Overlay with Settings open over the chat">
-</p>
+本版本关闭自动更新，增加窗口、IPC、网络和事件输入防护，并统一管理官方 Event Bridge：打开悬浮窗会启动桥接器，正常关闭时一并停止。
 
-## Features
+## 使用
 
-- **Transparent Overlay**: Seamlessly integrates with your streaming setup
-- **Always-on-Top Mode**: Keeps the overlay visible above other windows
-- **Click-Through Mode**: Interact with applications beneath the overlay
-- **Real-time Chat Display**: Shows messages, interactions, and special events
-- **Online User Count**: Displays current viewer count with smooth animations
-- **Persistent Settings**: Saves your preferences locally
+双击 `out/LAPLACE Chat Overlay-win32-x64/chat-overlay.exe`，保留整个目录。
 
-## Download
+首次在 **Settings → Server Settings** 复制连接令牌；在 [LAPLACE Chat](https://chat.laplace.live) 的桥接设置中填写 `ws://127.0.0.1:9696` 和令牌，然后保持网页运行。生产者网页来源仅允许 `https://chat.laplace.live`。
 
-### Stable Releases
+详细说明见 [本地运行](docs/local-run.md)。程序与上游产品名称相同，本 fork 的 overlay 未使用作者签名；内附桥接器为固定版本的官方已签名程序。
 
-> [!IMPORTANT]
-> All stable releases are signed and notarized. Do not download or run these from untrusted sources. If your system prompts that the app is from unknown sources without a signature, remove it immediately and report in our Discord.
->
-> 所有稳定版本均已签名和公证。请勿从不受信任的来源下载或安装。如果系统提示该应用来自未知来源且未签名，请立即删除并在我们的 Discord 中报告。
+## 从源码构建
 
-Download the latest stable version from our GitHub releases:
+需要已有 Node.js 24 和仓库指定的 pnpm。无需 Go、Bun、Docker 或额外原生编译工具链。
 
-[📦 Download Latest Release](https://github.com/laplace-live/chat-overlay/releases/latest)
-
-Available for:
-
-- **macOS**: `*.darwin-arm64-*.zip` package for Apple Silicon Macs
-- **Windows**: `*.Setup.exe` installer for 64-bit systems
-- **Linux**: `*.rpm` and `*.deb` packages for most distributions
-
-### Nightly Builds
-
-Get the latest development builds with cutting-edge features:
-
-[🌙 Download Nightly Builds](https://github.com/laplace-live/chat-overlay/actions)
-
-1. Click on the latest workflow run with a ✅ status
-2. Scroll down to "Artifacts" section
-3. Download the build for your platform
-
-> [!CAUTION]
-> Nightly builds are automatically generated from the latest code and may contain experimental features or bugs. Use stable releases for production streaming.
->
-> All nightly builds are not signed or notarized.
-
-## Usage
-
-### Development
-
-Run the application in development mode:
-
-```bash
-pnpm start
+```powershell
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm bridge:prepare
+# Electron 单独准备，保持包内校验值；缓存位置可自行指定。
+$env:electron_config_cache = Join-Path (Split-Path $PWD -Parent) '.cache/electron'
+node node_modules/electron/install.js
+pnpm typecheck
+pnpm lint
+pnpm test:security
+$env:NODE_ENV = 'production'
+pnpm package
 ```
 
-### Production Build
+`bridge:prepare` 仅在文件缺失时下载官方 0.3.21 到 `resources/bridge/leb-server-windows-x64.exe`，下载后检查固定 SHA-256；已有文件只校验、不替换。下载位置会打印到终端。打包前请先执行此命令。
 
-Package the application for your platform:
+GitHub Actions 仅检查 Windows 目录构建与安全测试，不自动签名、发布或更新程序。
 
-```bash
-pnpm make
-```
+## 仓库结构
 
-The packaged applications will be available in the `out` directory.
+| 路径 | 内容 |
+| --- | --- |
+| `src/` | 窗口、界面、加固逻辑和开发预览数据 |
+| `resources/bridge/` | 官方桥接器来源、许可证；exe 不提交 Git |
+| `scripts/prepare-bridge.mjs` | 固定版本桥接器准备与校验 |
+| `tests/` | 安全回归和桌面检查 |
+| `docs/` | 使用说明、验证记录和清理范围 |
+| `.changeset/` | 用户可见变更记录 |
 
-Packaging for macOS needs macOS 26 or later with Xcode 26 or later: the app
-icon is an Icon Composer document (`src/assets/icons/prod/icon.icon`), which
-Electron Packager compiles with `actool` into `Assets.car`. Re-export it from
-Icon Composer rather than editing it, then run `pnpm generate-icons prod` to
-re-render the `icon.icns` fallback from it. Development builds keep the PNG-based
-dev icon.
+`node_modules/`、`out/`、`.cache/`、`runtime/` 和程序二进制不提交。已验证版本记录见 [验证说明](docs/validation.md)。保留的 `CHANGELOG.md` 为上游历史，后续行为修改使用 Changesets 记录。
 
-### Screenshots
+## 来源与许可
 
-The pictures of the overlay at the top of this README and on laplace.live are
-committed in `screenshots/`. The app takes them itself, on a throwaway profile
-fed by a made-up Event Bridge:
-
-```bash
-pnpm screenshots
-```
-
-[docs/screenshots.md](docs/screenshots.md) covers how it works and when to rerun
-it.
-
-### Linux: Wayland and XWayland
-
-Always-on-top and click pass-through both require an X11 client. Wayland gives
-applications no control over where their windows sit or how they stack, which
-rules out always-on-top as well as the title-bar sensor that click pass-through
-relies on (see below), so on a native Wayland session both toggles do nothing at
-all.
-
-The overlay therefore launches itself under XWayland on Wayland sessions — the
-`.deb` and `.rpm` desktop entries pass `--ozone-platform=x11`, and any other
-launch path (a terminal, autostart) relaunches once with the same flag. The
-trade-off is that Linux loses native-Wayland fractional scaling, which can look
-softer on HiDPI displays.
-
-To stay on native Wayland — for instance if XWayland isn't installed — set
-`CHAT_OVERLAY_ALLOW_WAYLAND=1`, accepting that both features become inert.
-
-In development the relaunch is skipped, because the replacement process would
-outlive the Vite dev server that electron-forge tears down with its own child.
-Start it on X11 directly instead:
-
-```bash
-pnpm start -- --ozone-platform=x11
-```
-
-#### How click pass-through keeps the title bar alive on Linux
-
-On macOS and Windows the chat area passes clicks through while the title bar
-stays interactive, because `setIgnoreMouseEvents(true, { forward: true })` keeps
-delivering mousemove so the renderer can tell when the cursor comes back.
-
-Linux has no `forward`, and nothing else fills the gap — an ignored window gets
-no pointer events at all, so `screen.getCursorScreenPoint()` freezes, and
-`setShape()` constrains only what is drawn, not what is clickable.
-
-So on Linux the app opens a second window: a transparent, always-on-top strip
-parked exactly over the title bar, running this same bundle in `?sensor=1` mode.
-While the overlay is passing clicks through, that strip is the only thing that
-can still notice the cursor arriving. When it does, it hands control back — the
-overlay stops ignoring the pointer and the strip steps aside — so the title bar
-behaves natively, with working hover, dragging and buttons. The renderer's own
-mousemove handler re-engages pass-through when the cursor leaves again.
-
-As a safety net, pressing Escape with the overlay focused always turns
-pass-through off.
-
-## Releasing
-
-Versions and the changelog are managed by [Changesets](https://changesets.dev).
-Never bump `version` in `package.json`, push a `v*` tag, or edit
-`CHANGELOG.md` by hand.
-
-1. Every user-facing change ships with a changeset in the same commit. Run
-   `pnpm exec changeset`, or add a file under `.changeset/` yourself:
-
-   ```md
-   ---
-   'chat-overlay': minor
-   ---
-
-   feat: Add a font size setting for chat messages
-   ```
-
-   Use `minor` for new features and substantial behavior changes, `patch` for
-   fixes and small changes. Start the summary with `feat:`, `fix:`, `perf:` or
-   `chore:`, then one capitalized sentence written for users — the prefix is
-   stripped, and the rest lands verbatim in `CHANGELOG.md` and the GitHub
-   Release. CI, docs, and refactors with no user-visible effect need no
-   changeset; `pnpm exec changeset status` lists what is pending.
-
-2. While changesets sit on `master`, the Release workflow keeps a
-   `chore: version packages` PR open that bumps the version and updates
-   `CHANGELOG.md`. When the release changes UI the screenshots show, refresh
-   them with `pnpm screenshots` before merging it
-   ([docs/screenshots.md](docs/screenshots.md)).
-3. Merging that PR tags `v<version>` and creates the GitHub Release from the
-   new changelog entry. The tag triggers Build and Release, which signs every
-   platform and attaches the installers to that release, where macOS and
-   Windows installs pick up the update.
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Add a changeset if the change is user-facing (`pnpm exec changeset`, see
-   [Releasing](#releasing))
-4. Commit your changes (`git commit -m 'Add some amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
-
-## License
-
-AGPL-3.0
+原作者及版权信息保留。overlay 与官方桥接器均遵循 AGPL-3.0，详见 [LICENSE](LICENSE)、[桥接器许可证](resources/bridge/LICENSE) 和 [桥接器来源](resources/bridge/ORIGIN.md)。

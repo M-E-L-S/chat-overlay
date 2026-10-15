@@ -1,23 +1,24 @@
 # AGENTS.md
 
-This file provides guidance to coding agents when working with code in this repository.
+## Scope
 
-## Shipping a change
+This fork targets the Windows x64 portable overlay with a managed official Event Bridge. See README.md and docs/local-run.md. Preserve the existing visuals, window behavior and security boundaries.
 
-- **Every user-facing change ships with a changeset in the same commit** — add it yourself, unasked. An Electron upgrade counts.
+## Changes and versions
 
-  ```sh
-  pnpm exec changeset add --minor chat-overlay -m "feat: Add a font size setting for chat messages"
-  ```
+- Every user-facing behavior change must include a Changeset; use minor for new features and substantial behavior changes, patch for fixes and small changes.
+- Start the summary with feat:/fix:/perf:/chore: and one short user-facing sentence.
+- Docs, CI, tests and behavior-preserving cleanup need no changeset.
+- Do not manually bump package.json version, edit CHANGELOG.md or push version tags. Keep Changesets for future versioning; this fork does not automatically publish releases.
 
-  `--minor` for new features and substantial behavior changes, `--patch` for fixes and small changes — size decides the bump, not visibility. Start the summary with `feat:`/`fix:`/`perf:`/`chore:`, then **one capitalized plain sentence under ~80 chars, written for users** — no rationale, no mechanism, no second line. The prefix is stripped and the rest ships verbatim as the GitHub Release notes ([README](README.md#releasing)).
-- No changeset for CI, docs, tests, dev-only tooling, or refactors with no user-visible effect.
-- **Never bump `version` in `package.json`, push a `v*` tag, or hand-edit `CHANGELOG.md`** — merging the Release workflow's version PR does all three.
+## Verification
 
-## Screenshots
-
-`pnpm screenshots` captures laplace.live's pictures of the overlay into `screenshots/`, running the real app against a made-up Event Bridge. How it works, and when to rerun it, is in [docs/screenshots.md](docs/screenshots.md).
+- Run pnpm typecheck and pnpm lint after code/dependency cleanup.
+- Run pnpm test:security after security or bridge changes; it uses the verified official executable prepared with pnpm bridge:prepare.
+- Run production pnpm package after build changes. Preserve an existing out directory and its runtime data when checking a cleanup; use a separate validation output directory.
+- Keep src/dev fixtures and tests; they verify the unchanged event appearance.
+- Never commit executables, caches, runtime profiles or tokens.
 
 ## Editing these instructions
 
-`CLAUDE.md` is a symlink to `AGENTS.md` — **edit the real file.**
+CLAUDE.md is a Git symlink to AGENTS.md; edit AGENTS.md.

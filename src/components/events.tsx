@@ -7,13 +7,11 @@ import { nf } from '@/utils/number-format'
 
 import { cn } from '../lib/cn'
 import { useRuntimeStore } from '../store/useRuntimeStore'
-import { useSettingsStore } from '../store/useSettingsStore'
 import { EventLite } from './event-lite'
 import { EventBoundary } from './event-boundary'
 import { Button } from './ui/button'
 
 export function ChatEvents() {
-  const { showInteractionEvents, showGiftFree, showEntryEffect } = useSettingsStore()
   const { connectionState, messages } = useRuntimeStore()
   const [isAutoScrollPaused, setIsAutoScrollPaused] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -79,115 +77,6 @@ export function ChatEvents() {
     if ('priceNormalized' in event && event.priceNormalized > 0) {
       return `¥${nf.format(event.priceNormalized)}`
     }
-    return null
-  }
-
-  // Function to render a message based on its type
-  const renderMessage = (event: LaplaceEvent) => {
-    if (event.type === 'system') {
-      return (
-        <div key={event.id} className='event system'>
-          <span className='text'>{event.message}</span>
-        </div>
-      )
-    }
-
-    if (event.type === 'interaction') {
-      if (!showInteractionEvents) {
-        return null
-      }
-
-      const actionMap: { [key: number]: string } = {
-        1: '进入直播间',
-        2: '关注',
-        3: '分享',
-        4: '特别关注',
-        5: '互相关注',
-      }
-
-      return (
-        <div key={event.id} className={cn('event interaction', `guard-type-${event.guardType}`)}>
-          <span className='username'>{event.username}</span>
-          <span className='text'>{actionMap[event.action]}</span>
-        </div>
-      )
-    }
-
-    if (event.type === 'like-click') {
-      if (!showInteractionEvents) {
-        return null
-      }
-
-      return (
-        <div key={event.id} className={'event like-click'}>
-          <span className='username'>{event.username}:</span>
-          <span className='text'>{event.message}</span>
-        </div>
-      )
-    }
-
-    if (event.type === 'message') {
-      return (
-        <div key={event.id} className={cn('event message', `guard-type-${event.guardType}`)}>
-          <img src={event.avatar} alt='avatar' className='avatar' referrerPolicy='no-referrer' />
-          <div>
-            <span className='username'>{event.username}:</span>
-            <span className='text'>{event.message}</span>
-          </div>
-        </div>
-      )
-    }
-
-    if (event.type === 'superchat') {
-      return (
-        <div key={event.id} className={cn('event superchat', `guard-type-${event.guardType}`)}>
-          <span className='username'>{event.username}:</span>
-          <span className='price'>[¥{event.priceNormalized}]</span>
-          <span className='text'>{event.message}</span>
-        </div>
-      )
-    }
-
-    if (event.type === 'gift') {
-      if (!showGiftFree && event.coinType === 'silver') {
-        return null
-      }
-
-      return (
-        <div key={event.id} className={cn('event gift', `guard-type-${event.guardType}`)}>
-          <span className='username'>{event.username}:</span>
-          <span className='price'>[¥{event.priceNormalized}]</span>
-          <span className='text'>{event.message}</span>
-        </div>
-      )
-    }
-
-    if (event.type === 'toast') {
-      return (
-        <div key={event.id} className='event toast'>
-          <span className='username'>{event.username}:</span>
-          <span className='price'>[¥{event.priceNormalized}]</span>
-          <span className='text'>{event.message}</span>
-        </div>
-      )
-    }
-
-    if (event.type === 'entry-effect') {
-      if (!showEntryEffect) {
-        return null
-      }
-
-      // Remove special markers <%...%> but keep the text inside
-      const message = event.message.replace(/<%([^%>]+)%>/g, '$1').trim()
-
-      return (
-        <div key={event.id} className={cn('event entry-effect', `guard-type-${event.guardType}`)}>
-          <img src={event.avatar} alt='avatar' className='avatar' referrerPolicy='no-referrer' />
-          <span className='text'>{message}</span>
-        </div>
-      )
-    }
-
     return null
   }
 

@@ -1,7 +1,7 @@
 nodeLinker: hoisted
 blockExoticSubdeps: false
 allowBuilds:
-  electron-winstaller: true
+  electron-winstaller: set this to true or false
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - "@laplace.live/event-bridge-sdk"

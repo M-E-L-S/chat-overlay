@@ -92,5 +92,6 @@ typings/
 out/
 resources/bridge/*.exe
 
-# Local debug VM connection details (host/user); never commit to this repo
-.claude/vm.env
+# Local profiles and credentials
+runtime/
+*.download-*

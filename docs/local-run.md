@@ -55,6 +55,7 @@ Electron 44.7.0 Windows x64 包 SHA-256：`eee30dc8fa1f5ea95490e59f44e46ea68dd24
 
 ```powershell
 pnpm install --frozen-lockfile --ignore-scripts
+pnpm bridge:prepare
 # 首次准备 Electron 时设置 electron_config_cache 指向上述缓存，然后执行：
 node node_modules/electron/install.js
 node node_modules/typescript/bin/tsc --noEmit

@@ -1,0 +1,37 @@
+name: Check Windows portable build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6.1.0
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Prepare Electron in runner workspace
+        run: node node_modules/electron/install.js
+        env:
+          electron_config_cache: ${{ github.workspace }}/.cache/electron
+      - run: pnpm bridge:prepare
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test:security
+      - run: pnpm package
+        env:
+          NODE_ENV: production
