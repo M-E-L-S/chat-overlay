@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fs from 'node:fs'
 import { FuseV1Options, FuseVersion } from '@electron/fuses'
 import { MakerDeb, type MakerDebConfigOptions } from '@electron-forge/maker-deb'
 import { MakerRpm } from '@electron-forge/maker-rpm'
@@ -17,6 +18,11 @@ const APP_ICON = `src/assets/icons/${process.env.NODE_ENV === 'development' ? 'd
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    extraResource: [path.resolve('resources/bridge')],
+    download: {
+      cacheRoot: path.resolve('..', '.cache', 'electron'),
+      checksums: JSON.parse(fs.readFileSync(path.resolve('node_modules/electron/checksums.json'), 'utf8')),
+    },
     icon: APP_ICON,
     executableName: 'chat-overlay',
     appBundleId: 'live.laplace.chat-overlay',

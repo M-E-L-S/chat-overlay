@@ -9,6 +9,7 @@ import { cn } from '../lib/cn'
 import { useRuntimeStore } from '../store/useRuntimeStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { EventLite } from './event-lite'
+import { EventBoundary } from './event-boundary'
 import { Button } from './ui/button'
 
 export function ChatEvents() {
@@ -240,6 +241,7 @@ export function ChatEvents() {
               }
 
               return (
+                <EventBoundary key={event.id}>
                 <div
                   key={event.id}
                   data-slot='event'
@@ -273,6 +275,7 @@ export function ChatEvents() {
                   {/* Content */}
                   <EventLite data={event} />
                 </div>
+                </EventBoundary>
               )
             })
           )}

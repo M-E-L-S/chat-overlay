@@ -21,5 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getManagedBridge: () => ipcRenderer.invoke('get-managed-bridge'),
+  copyBridgeToken: () => ipcRenderer.send('copy-bridge-token'),
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
 })

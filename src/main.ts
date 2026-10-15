@@ -1,12 +1,38 @@
 import { spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
+import fs from 'node:fs'
 import path from 'node:path'
-import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron'
-import started from 'electron-squirrel-startup'
-import { updateElectronApp } from 'update-electron-app'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, safeStorage, session, shell, type IpcMainEvent } from 'electron'
+import { startManagedBridge } from './bridge-process'
+import { isAppPage, secureSession, secureWindow } from './desktop-security'
+import { isExternalURL } from './security-policy'
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (started) {
-  app.quit()
+// All settings, Chromium state and crash data stay beside this portable build.
+const runtimeDir = app.isPackaged ? path.join(path.dirname(process.execPath), 'runtime') : path.resolve('..', 'runtime')
+fs.mkdirSync(runtimeDir, { recursive: true })
+app.setPath('userData', runtimeDir)
+app.setPath('sessionData', runtimeDir)
+app.setPath('crashDumps', path.join(runtimeDir, 'crashes'))
+app.setAppLogsPath(path.join(runtimeDir, 'logs'))
+if (!app.requestSingleInstanceLock()) app.exit(0)
+
+const rendererFile = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
+const devURL = MAIN_WINDOW_VITE_DEV_SERVER_URL || undefined
+let managedBridge: Awaited<ReturnType<typeof startManagedBridge>> | undefined
+let bridgeToken = ''
+let quitting = false
+
+function loadBridgeToken(): string {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('系统凭据加密不可用，未以明文保存桥接令牌。')
+  const file = path.join(runtimeDir, 'bridge-token.bin')
+  if (fs.existsSync(file)) {
+    const value = safeStorage.decryptString(fs.readFileSync(file))
+    if (!/^[A-Za-z0-9_-]{43}$/.test(value)) throw new Error('桥接令牌文件无效。')
+    return value
+  }
+  const value = randomBytes(32).toString('base64url')
+  fs.writeFileSync(file, safeStorage.encryptString(value), { mode: 0o600, flag: 'wx' })
+  return value
 }
 
 const OZONE_PLATFORM_SWITCH = '--ozone-platform='
@@ -59,11 +85,7 @@ if (isWaylandWithoutOverride) {
   }
 }
 
-// Configure auto-updates
-updateElectronApp({
-  notifyUser: false,
-  logger: console,
-})
+// This audited local build intentionally has no automatic updater.
 
 // Force dark theme
 nativeTheme.themeSource = 'dark'
@@ -170,9 +192,12 @@ const createTitleBarSensor = () => {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
     },
   })
 
+  secureWindow(titleBarSensor)
   // Same bundle as the overlay, in a mode that renders only a hover sensor
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     titleBarSensor.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}?sensor=1`)
@@ -250,32 +275,45 @@ const disableClickThroughOnEscape = () => {
 }
 
 // Register all IPC handlers once at startup
+const trustedMainSender = (event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent, sensor = false) => {
+  const owner = sensor ? titleBarSensor : mainWindow
+  return !!owner && !owner.isDestroyed() && event.sender === owner.webContents &&
+    event.senderFrame === owner.webContents.mainFrame && isAppPage(event.senderFrame.url, rendererFile, devURL)
+}
+
+const onTrusted = (channel: string, handler: (event: IpcMainEvent, ...args: unknown[]) => void, sensor = false) => {
+  ipcMain.on(channel, (event, ...args: unknown[]) => {
+    if (trustedMainSender(event, sensor)) handler(event, ...args)
+  })
+}
+
 const registerIpcHandlers = () => {
   // Handle opacity changes
-  ipcMain.on('set-window-opacity', (_event, opacity) => {
-    mainWindow?.setOpacity(opacity)
+  onTrusted('set-window-opacity', (_event, opacity) => {
+    if (typeof opacity === 'number' && Number.isFinite(opacity) && opacity >= 0.1 && opacity <= 1) mainWindow?.setOpacity(opacity)
   })
 
   // Handle always on top toggle
-  ipcMain.on('set-always-on-top', (_event, enabled) => {
-    mainWindow?.setAlwaysOnTop(enabled)
+  onTrusted('set-always-on-top', (_event, enabled) => {
+    if (typeof enabled === 'boolean') mainWindow?.setAlwaysOnTop(enabled)
   })
 
   // Handle click pass-through toggle
-  ipcMain.on('set-click-through', (_event, enabled) => {
-    setClickThroughEnabled(Boolean(enabled))
+  onTrusted('set-click-through', (_event, enabled) => {
+    if (typeof enabled === 'boolean') setClickThroughEnabled(enabled)
   })
 
   // A title-bar overlay opened or closed; pause pass-through while one is up.
-  ipcMain.on('set-click-through-suspended', (_event, suspended) => {
-    clickThroughSuspended = Boolean(suspended)
+  onTrusted('set-click-through-suspended', (_event, suspended) => {
+    if (typeof suspended !== 'boolean') return
+    clickThroughSuspended = suspended
     syncClickThrough()
   })
 
   // The renderer owns the title bar's layout, so it reports how tall the
   // interactive strip is; the sensor has to cover exactly that.
-  ipcMain.on('set-title-bar-height', (_event, height) => {
-    if (typeof height !== 'number' || !Number.isFinite(height) || height <= 0) return
+  onTrusted('set-title-bar-height', (_event, height) => {
+    if (typeof height !== 'number' || !Number.isFinite(height) || height <= 0 || height > 512) return
 
     titleBarHeight = height
     syncSensorBounds()
@@ -283,31 +321,38 @@ const registerIpcHandlers = () => {
 
   // The sensor saw the cursor reach the title bar: give the pointer back to the
   // real window so the title bar behaves like it does everywhere else.
-  ipcMain.on('title-bar-hovered', () => {
+  onTrusted('title-bar-hovered', () => {
     if (!isPassThroughActive()) return
 
     applyIgnoreMouseEvents(false)
-  })
+  }, true)
 
   // Handle mouse enter/leave events for click-through mode
-  ipcMain.on('set-ignore-mouse-events', (_event, ignore) => {
+  onTrusted('set-ignore-mouse-events', (_event, ignore) => {
     // Only meaningful while pass-through is engaged; otherwise the window stays
     // interactive and the renderer's reports are noise.
-    if (!isPassThroughActive()) return
+    if (!isPassThroughActive() || typeof ignore !== 'boolean') return
 
     applyIgnoreMouseEvents(Boolean(ignore))
   })
 
   // Handle get app version request
-  ipcMain.handle('get-app-version', () => {
+  ipcMain.handle('get-app-version', event => {
+    if (!trustedMainSender(event)) throw new Error('Untrusted IPC sender')
     return app.getVersion()
+  })
+  ipcMain.handle('get-managed-bridge', event => {
+    if (!trustedMainSender(event)) throw new Error('Untrusted IPC sender')
+    return managedBridge ? { host: '127.0.0.1', port: '9696', token: bridgeToken } : null
+  })
+  onTrusted('copy-bridge-token', () => {
+    if (bridgeToken) clipboard.writeText(bridgeToken)
   })
 
   // Open external links in the system's default browser
-  ipcMain.on('open-external', (_event, url) => {
-    // Only allow well-formed http(s) URLs to avoid opening arbitrary protocols
-    if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
-      shell.openExternal(url)
+  onTrusted('open-external', (_event, url) => {
+    if (isExternalURL(url)) {
+      void shell.openExternal(url).catch(() => {})
     }
   })
 }
@@ -327,10 +372,13 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
       devTools: process.env.NODE_ENV === 'development',
     },
   })
 
+  secureWindow(mainWindow)
   // A fresh window starts out interactive, so drop any state from a previous one
   ignoringMouseEvents = false
   disableClickThroughOnEscape()
@@ -362,7 +410,22 @@ const createWindow = () => {
 }
 
 // Initialize app
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  secureSession(session.defaultSession, rendererFile, devURL)
+  if (process.platform === 'win32' && process.env.CHAT_OVERLAY_MANAGED_BRIDGE !== '0') {
+    bridgeToken = loadBridgeToken()
+    managedBridge = await startManagedBridge({
+      executable: app.isPackaged
+        ? path.join(process.resourcesPath, 'bridge', 'leb-server-windows-x64.exe')
+        : path.resolve('resources/bridge/leb-server-windows-x64.exe'),
+      token: bridgeToken,
+      devOrigin: devURL ? new URL(devURL).origin : undefined,
+      onFailure: () => {
+        dialog.showErrorBox('桥接器已停止', '后台桥接器意外退出。请关闭并重新打开悬浮窗。')
+        app.quit()
+      },
+    })
+  }
   // Register IPC handlers once
   registerIpcHandlers()
 
@@ -377,6 +440,24 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
+}).catch(error => {
+  const message = error?.code === 'EADDRINUSE'
+    ? '127.0.0.1:9696 已被占用。请先关闭原来的桥接器或其他悬浮窗，本程序不会接管已有服务。'
+    : error instanceof Error ? error.message : '启动失败。'
+  dialog.showErrorBox('LAPLACE 启动失败', message)
+  app.quit()
+})
+
+app.on('before-quit', event => {
+  if (!managedBridge || quitting) return
+  event.preventDefault()
+  quitting = true
+  void managedBridge.stop().finally(() => { managedBridge = undefined; app.quit() })
+})
+app.on('second-instance', () => {
+  mainWindow?.restore()
+  mainWindow?.show()
+  mainWindow?.focus()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

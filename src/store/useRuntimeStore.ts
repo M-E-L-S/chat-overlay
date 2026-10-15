@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import { ConnectionState } from '@laplace.live/event-bridge-sdk'
 import type { LaplaceEvent } from '@laplace.live/event-types'
+import { validateEvent } from '../event-validation'
 
 interface RuntimeState {
+  managedBridge: boolean
   // Connection State
   connectionState: ConnectionState
   onlineUserCount: number | null
@@ -20,6 +22,7 @@ interface RuntimeState {
 const MAX_MESSAGES = 100
 
 export const useRuntimeStore = create<RuntimeState>()(set => ({
+  managedBridge: false,
   // Default values
   connectionState: ConnectionState.DISCONNECTED,
   onlineUserCount: null,
@@ -28,7 +31,8 @@ export const useRuntimeStore = create<RuntimeState>()(set => ({
   // Actions
   setConnectionState: connectionState => set({ connectionState }),
   setOnlineUserCount: (onlineUserCount: number | null) => set({ onlineUserCount }),
-  addMessage: event =>
+  addMessage: event => {
+    if (!validateEvent(event)) return
     set(state => {
       const newMessages = [...state.messages, event]
       // Keep only the most recent messages for performance
@@ -36,6 +40,7 @@ export const useRuntimeStore = create<RuntimeState>()(set => ({
         return { messages: newMessages.slice(-MAX_MESSAGES) }
       }
       return { messages: newMessages }
-    }),
+    })
+  },
   clearMessages: () => set({ messages: [] }),
 }))

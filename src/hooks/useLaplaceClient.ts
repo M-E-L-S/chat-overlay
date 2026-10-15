@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 
 import { useRuntimeStore } from '../store/useRuntimeStore'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { roomAllowed, validateEvent } from '../event-validation'
 
 export function useLaplaceClient() {
   const clientRef = useRef<LaplaceEventBridgeClient | null>(null)
@@ -38,25 +39,7 @@ export function useLaplaceClient() {
 
     // Handle incoming events
     const handleEvent = (event: LaplaceEvent) => {
-      console.log('Received event:', event)
-
-      // Filter by allowed origins if specified
-      if (allowedOriginsRef.current) {
-        const allowedOriginsList = allowedOriginsRef.current
-          .split(',')
-          .map(o => o.trim())
-          .filter(o => o)
-
-        if (allowedOriginsList.length > 0 && 'origin' in event) {
-          const eventOrigin = String(event.origin)
-          if (!allowedOriginsList.includes(eventOrigin)) {
-            console.log(
-              `Filtered out event from origin ${eventOrigin} (not in allowed list: ${allowedOriginsList.join(', ')})`
-            )
-            return
-          }
-        }
-      }
+      if (!validateEvent(event) || !roomAllowed(event, allowedOriginsRef.current)) return
 
       // Handle online-update event separately
       if (event.type === 'online-update') {

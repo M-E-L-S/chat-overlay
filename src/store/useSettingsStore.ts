@@ -66,6 +66,9 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'overlay-settings', // unique name for localStorage key
+      // Managed credentials are injected over trusted IPC at startup. Never put
+      // the token in Chromium localStorage or an exported CSS/settings profile.
+      partialize: state => ({ ...state, serverBridgeAuthToken: '' }),
     }
   )
 )

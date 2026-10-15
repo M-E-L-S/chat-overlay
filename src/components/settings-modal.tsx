@@ -48,7 +48,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   } = useSettingsStore()
 
   // Get connection state from runtime store
-  const { connectionState } = useRuntimeStore()
+  const { connectionState, managedBridge } = useRuntimeStore()
 
   // Rooms available on the connected event fetcher (null = not supported, e.g.
   // an old fetcher without /info or a local Event Bridge server).
@@ -267,6 +267,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
 
             <h3 className='font-bold'>Server Settings</h3>
+            {managedBridge && (
+              <div className='space-y-2 text-sm'>
+                <p>本机桥接器随悬浮窗自动启动和关闭。官方网页连接 ws://127.0.0.1:9696。</p>
+                <div className='flex gap-2'>
+                  <Button type='button' variant='outline' onClick={() => window.electronAPI.copyBridgeToken()}>复制网页连接令牌</Button>
+                  <Button type='button' variant='outline' onClick={() => window.electronAPI.openExternal('https://chat.laplace.live')}>打开官方网页</Button>
+                </div>
+                <p className='text-fg/60'>网页来源仅允许 https://chat.laplace.live；令牌只需粘贴到该网页的桥接设置。</p>
+              </div>
+            )}
             <div className='space-y-1'>
               <Label className='pb-1' htmlFor='server-host'>
                 Server Host
@@ -274,6 +284,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <Input
                 type='text'
                 id='server-host'
+                readOnly={managedBridge}
                 value={serverHost}
                 onChange={handleServerHostChange}
                 placeholder='localhost'
@@ -289,6 +300,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 min={1}
                 max={65535}
                 id='server-port'
+                disabled={managedBridge}
                 value={serverPort}
                 onChange={handleServerPortChange}
                 placeholder='9696'
@@ -303,6 +315,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <Input
                 type='password'
                 id='server-bridge-auth-token'
+                readOnly={managedBridge}
                 value={serverBridgeAuthToken}
                 onChange={handleServerBridgeAuthTokenChange}
                 placeholder='Optional'

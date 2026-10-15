@@ -38,6 +38,8 @@ declare global {
       notifyTitleBarHovered: () => void
       onClickThroughEnabled: (callback: (enabled: boolean) => void) => () => void
       getAppVersion: () => Promise<string>
+      getManagedBridge: () => Promise<{ host: string; port: string; token: string } | null>
+      copyBridgeToken: () => void
       openExternal: (url: string) => void
     }
   }
@@ -296,7 +298,17 @@ const TitleBarSensor: React.FC = () => {
 const container = document.getElementById('root')
 if (container) {
   const root = createRoot(container)
-  root.render(isTitleBarSensor ? <TitleBarSensor /> : <App />)
+  if (isTitleBarSensor) {
+    root.render(<TitleBarSensor />)
+  } else {
+    window.electronAPI.getManagedBridge().then(bridge => {
+      if (bridge) {
+        useSettingsStore.setState({ serverHost: bridge.host, serverPort: bridge.port, serverBridgeAuthToken: bridge.token })
+        useRuntimeStore.setState({ managedBridge: true })
+      }
+      root.render(<App />)
+    }).catch(() => root.render(<div role='alert'>无法读取本机桥接配置，请重启悬浮窗。</div>))
+  }
 }
 
 if (!isTitleBarSensor) {
